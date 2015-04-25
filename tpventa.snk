@@ -22,6 +22,9 @@ FINPEDIDO       FUNCTION    P$TIPO, D2
 MEDIATOMAR      FUNCTION    P$TIPO, D2
 0,120/1,180
         
+MEDIAPRODUCTO   FUNCTION    P$TIPO, D2
+0,10/1,7
+        
 ;*************************************** INICIALIZACION DE SAVEVALUES ***********************
         
 ;*************************************** RELOJ EN EL HORARIO DE 8 A 18 **********************
@@ -42,6 +45,9 @@ MOSTRADOR   QUEUE       TOMAR
             SEIZE       TOMAR
             DEPART      TOMAR
             ADVANCE     FN$MEDIATOMAR,1
+            ASSIGN      AUXPROD,P$PRODUCTOS
+PORPROD     ADVANCE     FN$MEDIAPRODUCTO,2
+            LOOP        AUXPROD,PORPROD
             RELEASE     TOMAR
         
 ;SE PREPARA EL PEDIDO
