@@ -18,6 +18,9 @@ CANTPIEZAS      FUNCTION    RN4, C7
                 
 FINPEDIDO       FUNCTION    P$TIPO, D2
 0,RETIRARSE/1,COLGAR
+                
+MEDIATOMAR      FUNCTION    P$TIPO, D2
+0,120/1,180
         
 ;*************************************** INICIALIZACION DE SAVEVALUES ***********************
         
@@ -38,7 +41,7 @@ FINPEDIDO       FUNCTION    P$TIPO, D2
 MOSTRADOR   QUEUE       TOMAR
             SEIZE       TOMAR
             DEPART      TOMAR
-            ;ADVANCE DEPENDE DE SI ES EN MOSTRADOR O TELEFONO
+            ADVANCE     FN$MEDIATOMAR,1
             RELEASE     TOMAR
         
 ;SE PREPARA EL PEDIDO
@@ -48,7 +51,7 @@ MOSTRADOR   QUEUE       TOMAR
             DEPART      PREPARAR
             ADVANCE     300,120                     ;TIEMPO QUE TARDAN EN PREPARAR EL PEDIDO
             ASSIGN      AUXPROD,P$PRODUCTOS
-OTROPROD    ADVANCE     5,20                        ;TIEMPO QUE TARDA POR PRODUCTO
+OTROPROD    ADVANCE     5,2                         ;TIEMPO QUE TARDA POR PRODUCTO
             LOOP        AUXPROD, OTROPROD
             
             ASSIGN      AUXPIEZAS, P$PIEZAS
@@ -72,7 +75,6 @@ OTRAFAC     ADVANCE     5,2                         ;TIEMPO QUE TARDA POR PRODUC
         
             TRANSFER    ,FN$FINPEDIDO               ;FINALIZAMOS DEPENDIENDO DEL TIPO DE PEDIDO
 RETIRARSE   TERMINATE
-
             
 ;SUBSISTEMA DE LLAMADOS TELEFONICOS
             
