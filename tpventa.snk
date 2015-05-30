@@ -86,21 +86,30 @@ RETIRARSE   TERMINATE
             
             GENERATE    600,360,,,10                ;ARRIBO DE LLAMADOS TELEFONICOS
             ASSIGN      TIPO,1                      ;ESTABLECEMOS QUE ES DE TIPO TELEFONICO EL ARRIBO
-            TRANSFER    0.5,,OCUPADO                ;SOLO LA MITAD DE LOS LLAMADOS SON PEDIDOS
+            TRANSFER    0.5,,NOPEDIDO               ;SOLO LA MITAD DE LOS LLAMADOS SON PEDIDOS
             ASSIGN      PRODUCTOS, FN$CANTPRODUCTOS ;CANTIDAD DE PRODUCTOS A SOLICITAR
             ASSIGN      PIEZAS, FN$CANTPIEZAS       ;CANTIDAD DE PIEZAS A SOLICITAR
             SELECT NU   5,1,1,,,OCUPADO             ;SI EL TELEFONO DA OCUPADO, COLGAMOS
             SEIZE       *5
             
             ;PASAMOS PEDIDO A CUALQUIER EMPLEADO DESOCUPADO
-            TRANSFER    ,MOSTRADOR ;CODIGO TEMPORAL!!!!!!!!!!
-        
-COLGAR      RELEASE *5
-        
+            
+            TRANSFER    ,MOSTRADOR                  ;TODO: CODIGO TEMPORAL!!!!!!!!!!
+            
+COLGAR      RELEASE     *5
+            TERMINATE
+            
+NOPEDIDO    SELECT NU   5,1,1,,,OCUPADO             ;SI EL TELEFONO DA OCUPADO, COLGAMOS
+            SEIZE       *5
+            ADVANCE     120,60                      ;TODO: NO FORMA PARTE DEL SISTEMA? A QUE SE REFIERE?
+            RELEASE     *5
+            TERMINATE
+            
 OCUPADO     TERMINATE
-        
-    
-
+            
+            
+            
+            
 
 <\F>
 Nombre=
