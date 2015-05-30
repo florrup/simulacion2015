@@ -1,6 +1,8 @@
 [Subsistema nuevo]
 ;*************************************** TABLES Y QTABLES ***********************************
         
+TIEMPOPEDIDO    TABLE MP8,180,30,30
+        
 ;*************************************** STORAGES *******************************************
         
 PREPARAR        STORAGE 2
@@ -54,20 +56,23 @@ PORPROD     ADVANCE     FN$MEDIAPRODUCTO,2
         
             QUEUE       PREPARAR
             ENTER       PREPARAR
-            DEPART      PREPARAR
+            MARK        8                           ;CUENTA TIEMPO DE PREPARACION DE PEDIDO
+            DEPART      PREPARAR                    
             ADVANCE     300,120                     ;TIEMPO QUE TARDAN EN PREPARAR EL PEDIDO
             ASSIGN      AUXPROD,P$PRODUCTOS
 OTROPROD    ADVANCE     5,2                         ;TIEMPO QUE TARDA POR PRODUCTO
             LOOP        AUXPROD, OTROPROD
-            
+        
             ASSIGN      AUXPIEZAS, P$PIEZAS
 RESET       ASSIGN      CONTADOR, 0                     
             ADVANCE     3,1                         ;TIEMPO QUE TARDA POR CONJUNTO DE 20 PIEZAS
-CONTAR      TEST GE     P$CONTADOR,20,RESET         ;SI SE CONTABILIZARON 20 PIEZAS, RESETEAMOS CONTADOR
+CONTAR      TEST L      P$CONTADOR,20,RESET         ;SI SE CONTABILIZARON 20 PIEZAS, RESETEAMOS CONTADOR
             ASSIGN      CONTADOR+,1                 ;CONTABILIZAMOS UNA PIEZA
             LOOP        AUXPIEZAS,CONTAR            ;ITERAMOS LA CANTIDAD DE PIEZAS QUE SE TIENEN
+        
+            TABULATE    TIEMPOPEDIDO                
             LEAVE       PREPARAR
-    
+        
 ;SE FACTURA EL PEDIDO
         
             QUEUE       FACTURAR
@@ -110,6 +115,7 @@ OCUPADO     TERMINATE
             
             
             
+
 
 <\F>
 Nombre=
