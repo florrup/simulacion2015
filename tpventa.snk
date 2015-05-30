@@ -1,4 +1,10 @@
 [Subsistema nuevo]
+;*************************************** DICCIONARIO ****************************************
+;1: FACILITY TELEFONO        
+;2: FACILITY MOSTRADOR
+;5: PARAMETRO TELEFONO OCUPADO
+;8: PARAMETRO CON TIEMPO DE PREPARACION DEL PEDIDO       
+        
 ;*************************************** TABLES Y QTABLES ***********************************
         
 TIEMPOPEDIDO    TABLE MP8,180,30,30
@@ -9,22 +15,23 @@ PREPARAR        STORAGE 2
         
 ;*************************************** VARIABLES ****************************************** 
         
+LOOPPIEZAS      VARIABLE    (P$AUXPIEZAS+19)/20        
         
 ;*************************************** FUNCIONES ******************************************
          
-CANTPRODUCTOS   FUNCTION    RN3, C4 
+CANTPRODUCTOS   FUNCTION    RN3,C4 
 0,1/0.6,12/0.95,20/1,101
                 
-CANTPIEZAS      FUNCTION    RN4, C7 
+CANTPIEZAS      FUNCTION    RN4,C7 
 0,1/0.14,20/0.31,50/0.53,200/0.82,500/0.99,2000/1,15001
                 
-FINPEDIDO       FUNCTION    P$TIPO, D2
-0,RETIRARSE/1,COLGAR
+FINPEDIDO       FUNCTION    P$TIPO,D2
+0,PREPARA/1,COLGAR
                 
-MEDIATOMAR      FUNCTION    P$TIPO, D2
+MEDIATOMAR      FUNCTION    P$TIPO,D2
 0,120/1,180
         
-MEDIAPRODUCTO   FUNCTION    P$TIPO, D2
+MEDIAPRODUCTO   FUNCTION    P$TIPO,D2
 0,10/1,7
         
 ;*************************************** INICIALIZACION DE SAVEVALUES ***********************
@@ -36,40 +43,41 @@ MEDIAPRODUCTO   FUNCTION    P$TIPO, D2
     
 ;*************************************** SUBSISTEMA A SIMULAR *******************************
         
-            GENERATE    420, 300 
-            ASSIGN      TIPO,0                      ;ESTABLECEMOS QUE ES DE TIPO PERSONAL EL ARRIBO
-            ASSIGN      PRODUCTOS, FN$CANTPRODUCTOS ;CANTIDAD DE PRODUCTOS A SOLICITAR
-            ASSIGN      PIEZAS, FN$CANTPIEZAS       ;CANTIDAD DE PIEZAS A SOLICITAR
+            GENERATE    420,300                     ;ARRIBO DE PERSONAS
+            ASSIGN      TIPO,0                      ;ESTABLECEMOS QUE ES DE TIPO PERSONAL EL 
+            
+            ASSIGN      PRODUCTOS,FN$CANTPRODUCTOS  ;CANTIDAD DE PRODUCTOS A SOLICITAR
+            ASSIGN      PIEZAS,FN$CANTPIEZAS        ;CANTIDAD DE PIEZAS A SOLICITAR
         
 ;SE TOMA EL PEDIDO
         
-MOSTRADOR   QUEUE       TOMAR
-            SEIZE       TOMAR
-            DEPART      TOMAR
-            ADVANCE     FN$MEDIATOMAR,60
+MOSTRADOR   QUEUE       2                           ;2 IDENTIFICA AL EMPLEADO DEL MOSTRADOR
+            SEIZE       2
+            DEPART      2
+AVANZAMOST  ADVANCE     FN$MEDIATOMAR,60
             ASSIGN      AUXPROD,P$PRODUCTOS
 PORPROD     ADVANCE     FN$MEDIAPRODUCTO,2
             LOOP        AUXPROD,PORPROD
-            RELEASE     TOMAR
-        
+            RELEASE     2
+            TRANSFER    ,FN$FINPEDIDO               ;FINALIZAMOS DEPENDIENDO DEL TIPO DE PEDIDO    
+                    
 ;SE PREPARA EL PEDIDO
         
-            QUEUE       PREPARAR
+PREPARA     QUEUE       PREPARAR
             ENTER       PREPARAR
-            MARK        8                           ;CUENTA TIEMPO DE PREPARACION DE PEDIDO
-            DEPART      PREPARAR                    
+            DEPART      PREPARAR   
+AVANZAPREP  MARK        8                           ;CUENTA TIEMPO DE PREPARACION DE PEDIDO
+        
             ADVANCE     300,120                     ;TIEMPO QUE TARDAN EN PREPARAR EL PEDIDO
             ASSIGN      AUXPROD,P$PRODUCTOS
 OTROPROD    ADVANCE     5,2                         ;TIEMPO QUE TARDA POR PRODUCTO
-            LOOP        AUXPROD, OTROPROD
+            LOOP        AUXPROD,OTROPROD
         
-            ASSIGN      AUXPIEZAS, P$PIEZAS
-RESET       ASSIGN      CONTADOR, 0                     
-            ADVANCE     3,1                         ;TIEMPO QUE TARDA POR CONJUNTO DE 20 PIEZAS
-CONTAR      TEST L      P$CONTADOR,20,RESET         ;SI SE CONTABILIZARON 20 PIEZAS, RESETEAMOS CONTADOR
-            ASSIGN      CONTADOR+,1                 ;CONTABILIZAMOS UNA PIEZA
-            LOOP        AUXPIEZAS,CONTAR            ;ITERAMOS LA CANTIDAD DE PIEZAS QUE SE TIENEN
-        
+            ASSIGN      AUXPIEZAS,P$PIEZAS          ;CANTIDAD DE PIEZAS DEL PEDIDO
+            ASSIGN      GRUPOPIEZAS,V$LOOPPIEZAS    ;CANTIDAD DE GRUPOS DE 20 DE LAS PIEZAS     
+OTRAPIEZ    ADVANCE     3,1                         ;TIEMPO QUE TARDA POR CONJUNTO DE 20 PIEZAS
+            LOOP        GRUPOPIEZAS,OTRAPIEZ
+            
             TABULATE    TIEMPOPEDIDO                
             LEAVE       PREPARAR
         
@@ -79,40 +87,51 @@ CONTAR      TEST L      P$CONTADOR,20,RESET         ;SI SE CONTABILIZARON 20 PIE
             SEIZE       FACTURAR
             DEPART      FACTURAR
             ADVANCE     120,30                      ;TIEMPO QUE TARDA EN FACTURAR
-            ASSIGN      AUXPROD, P$PRODUCTOS
+            ASSIGN      AUXPROD,P$PRODUCTOS
 OTRAFAC     ADVANCE     5,2                         ;TIEMPO QUE TARDA POR PRODUCTO
-            LOOP        AUXPROD, OTRAFAC
+            LOOP        AUXPROD,OTRAFAC
             RELEASE     FACTURAR
-        
-            TRANSFER    ,FN$FINPEDIDO               ;FINALIZAMOS DEPENDIENDO DEL TIPO DE PEDIDO
+               
 RETIRARSE   TERMINATE
             
 ;SUBSISTEMA DE LLAMADOS TELEFONICOS
             
             GENERATE    600,360,,,10                ;ARRIBO DE LLAMADOS TELEFONICOS
-            ASSIGN      TIPO,1                      ;ESTABLECEMOS QUE ES DE TIPO TELEFONICO EL ARRIBO
+            ASSIGN      TIPO,1                      ;ESTABLECEMOS QUE ES DE TIPO TELEFONICO EL 
+            SELECT NU   5,1,1,,,OCUPADO             ;SI EL TELEFONO DA OCUPADO, TERMINA
+            SEIZE       *5
             TRANSFER    0.5,,NOPEDIDO               ;SOLO LA MITAD DE LOS LLAMADOS SON PEDIDOS
-            ASSIGN      PRODUCTOS, FN$CANTPRODUCTOS ;CANTIDAD DE PRODUCTOS A SOLICITAR
-            ASSIGN      PIEZAS, FN$CANTPIEZAS       ;CANTIDAD DE PIEZAS A SOLICITAR
-            SELECT NU   5,1,1,,,OCUPADO             ;SI EL TELEFONO DA OCUPADO, COLGAMOS
-            SEIZE       *5
+            ASSIGN      PRODUCTOS,FN$CANTPRODUCTOS  ;CANTIDAD DE PRODUCTOS A SOLICITAR
+            ASSIGN      PIEZAS,FN$CANTPIEZAS        ;CANTIDAD DE PIEZAS A SOLICITAR
+                  
+            ;PASAMOS PEDIDO A CUALQUIER EMPLEADO DESOCUPADO DEL MOSTRADOR O DE PEDIDOS
+            QUEUE       LLAMADOS                   ;LLAMADO ESPERA A QUE SEA ATENDIDO
+            SELECT NU   AA,2,2,,,MOSTOCUPADO       ;SENSAMOS SI EL MOSTRADOR ESTA LIBRE  
+            SEIZE       2                          ;TOMAMOS AL PERSONAL DEL MOSTRADOR
+            DEPART      LLAMADOS                   ;SE DEJA LA COLA UNA VEZ QUE TOMARON SU PEDIDO
+            TRANSFER    ,AVANZAMOST
             
-            ;PASAMOS PEDIDO A CUALQUIER EMPLEADO DESOCUPADO
-            
-            TRANSFER    ,MOSTRADOR                  ;TODO: CODIGO TEMPORAL!!!!!!!!!!
-            
+MOSTOCUPADO ENTER       PREPARAR                   ;NOS ATIENDE PERSONAL DE PREPARACION
+            DEPART      LLAMADOS                   ;SE DEJA LA COLA UNA VEZ QUE TOMARON SU PEDIDO
+            ADVANCE     FN$MEDIATOMAR,60           ;TIEMPO QUE TARDA EN TOMAR EL PEDIDO
+            ASSIGN      AUXPROD,P$PRODUCTOS        ;TIEMPO QUE TARDA EN TOMAR CADA PRODUCTO
+PORPROD1    ADVANCE     FN$MEDIAPRODUCTO,2
+            LOOP        AUXPROD,PORPROD1
+            RELEASE     *5
+            TRANSFER    ,AVANZAPREP                ;VAMOS A QUE NOS ARMEN EL PEDIDO
+        
 COLGAR      RELEASE     *5
-            TERMINATE
+            TRANSFER    ,PREPARA
             
-NOPEDIDO    SELECT NU   5,1,1,,,OCUPADO             ;SI EL TELEFONO DA OCUPADO, COLGAMOS
-            SEIZE       *5
-            ADVANCE     120,60                      ;TODO: NO FORMA PARTE DEL SISTEMA? A QUE SE REFIERE?
+NOPEDIDO    ADVANCE     120,60                     
             RELEASE     *5
             TERMINATE
             
 OCUPADO     TERMINATE
             
             
+            
+                  
             
             
 
