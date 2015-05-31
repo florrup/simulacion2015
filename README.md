@@ -13,8 +13,8 @@ COLOCARLO EN EL ANÁLISIS.
 
 ## To do 
 
-- [ x ] Análisis del reporte del modelo
-- [ x ] Principales inconvenientes del reporte
+- [x] Análisis del reporte del modelo
+- [x] Principales inconvenientes del reporte
 - [ ] Implementación y descripción detallada de las propuestas
 
 ## Propuestas

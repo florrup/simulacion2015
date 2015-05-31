@@ -1,4 +1,146 @@
 [Subsistema nuevo]
+;*************************************** TABLES Y QTABLES ***********************************
+        
+TABLA1          TABLE       MP8,180,30,30           ;TIEMPO TOTAL PARA PREPARAR EL PEDIDO              
+        
+;TABLAS QUE SENSAN LA CANTIDAD DE PEDIDOS SIN TERMINAR
+        
+TABLA2          TABLE       S$SPEDIDOS,1,1,50       ;CADA 15M
+TABLA3          TABLE       S$SPEDIDOS,1,1,50       ;CUANDO SE TERMINA DE TOMAR UNO
+TABLA4          TABLE       S$SPEDIDOS,1,1,50       ;AL TERMINAR DE DESPACHAR CADA UNO
+        
+;*************************************** STORAGES *******************************************
+        
+PREPARAR        STORAGE     2                       ;EMPLEADOS DEL SECTOR DE PREPARACION
+ATENDER         STORAGE     2                       ;EMPLEADOS DEL SECTOR DE MOSTRADOR
+SPEDIDOS        STORAGE     30000                   ;CANTIDAD DE PEDIDOS EN CURSO
+        
+;*************************************** VARIABLES ****************************************** 
+        
+LOOPPIEZAS      VARIABLE    (P$AUXPIEZAS+19)/20     ;CALCULA CANTIDAD DE GRUPOS DE 20 PIEZAS
+        
+;*************************************** FUNCIONES ******************************************
+         
+CANTPRODUCTOS   FUNCTION    RN3,C4 
+0,1/0.6,12/0.95,20/1,101
+                
+CANTPIEZAS      FUNCTION    RN4,C7 
+0,1/0.14,20/0.31,50/0.53,200/0.82,500/0.99,2000/1,15001
+                
+FINPEDIDO       FUNCTION    P$TIPO,D2
+0,PREPARA/1,COLGAR
+                
+MEDIATOMAR      FUNCTION    P$TIPO,D2
+0,120/1,180
+        
+MEDIAPRODUCTO   FUNCTION    P$TIPO,D2
+0,10/1,7
+         
+;*************************************** RELOJ EN EL HORARIO DE 8 A 18 **********************
+        
+            GENERATE    3600                        ;START 10 - SON DIEZ HORAS SIMULADAS
+            TERMINATE   1   
+                
+;*************************************** SUBSISTEMA TABULACION ******************************    
+        
+            GENERATE    900                         ;15 MINUTOS
+            TABULATE    TABLA2                      ;TABULA CANTIDAD DE PEDIDOS CADA 15 MIN.
+            TERMINATE
+                
+;*************************************** SUBSISTEMA A SIMULAR *******************************
+        
+            GENERATE    420,300                     ;ARRIBO DE PERSONAS
+            ASSIGN      TIPO,0                      ;ESTABLECE QUE ES DE TIPO PERSONAL 
+            ASSIGN      PRODUCTOS,FN$CANTPRODUCTOS  ;CANTIDAD DE PRODUCTOS A SOLICITAR
+            ASSIGN      PIEZAS,FN$CANTPIEZAS        ;CANTIDAD DE PIEZAS A SOLICITAR
+            ENTER       SPEDIDOS                    ;SUMA UN PEDIDO NUEVO PARA TERMINAR
+        
+            ;SE TOMA EL PEDIDO
+        
+MOSTRADOR   QUEUE       ATENDER                     
+            ENTER       ATENDER
+            DEPART      ATENDER
+AVANZAMOST  ADVANCE     FN$MEDIATOMAR,60            ;TIEMPO QUE TARDAN EN TOMAR EL PEDIDO
+            ASSIGN      AUXPROD,P$PRODUCTOS         
+PORPROD     ADVANCE     FN$MEDIAPRODUCTO,2          ;TIEMPO QUE TOMA POR PRODUCTO
+            LOOP        AUXPROD,PORPROD
+            LEAVE       ATENDER
+            TABULATE    TABLA3                      ;TABULA CANTIDAD DE PEDIDOS CUANDO SE TERMINA DE TOMAR UNO
+            TRANSFER    ,FN$FINPEDIDO               ;AVANZA DEPENDIENDO DEL TIPO DE PEDIDO    
+                    
+            ;SE PREPARA EL PEDIDO
+        
+PREPARA     QUEUE       PREPARAR                    ;ESPERA A SER PREPARADO POR ALGUNO DE LOS DOS EMPLEADOS
+            ENTER       PREPARAR
+            DEPART      PREPARAR        
+AVANZAPREP  MARK        8                           ;INICIA CONTEO DE TIEMPO DE PREPARACION DE PEDIDO
+            ADVANCE     300,120                     ;TIEMPO QUE TARDAN EN PREPARAR EL PEDIDO
+            ASSIGN      AUXPROD,P$PRODUCTOS
+OTROPROD    ADVANCE     5,2                         ;TIEMPO QUE TARDA POR PRODUCTO
+            LOOP        AUXPROD,OTROPROD
+            ASSIGN      AUXPIEZAS,P$PIEZAS          ;CANTIDAD DE PIEZAS DEL PEDIDO
+            ASSIGN      GRUPOPIEZAS,V$LOOPPIEZAS    ;CANTIDAD DE GRUPOS DE 20 DE LAS PIEZAS     
+OTRAPIEZ    ADVANCE     3,1                         ;TIEMPO QUE TARDA POR CONJUNTO DE 20 PIEZAS
+            LOOP        GRUPOPIEZAS,OTRAPIEZ
+            TABULATE    TABLA1                
+            LEAVE       PREPARAR
+        
+            ;SE FACTURA EL PEDIDO
+        
+            QUEUE       FACTURAR                    ;ESPERA A QUE SEA FACTURADO EL PEDIDO
+            SEIZE       FACTURAR
+            DEPART      FACTURAR
+            ADVANCE     120,30                      ;TIEMPO QUE TARDA EN FACTURAR
+            ASSIGN      AUXPROD,P$PRODUCTOS
+OTRAFAC     ADVANCE     5,2                         ;TIEMPO QUE TARDA POR PRODUCTO
+            LOOP        AUXPROD,OTRAFAC
+            RELEASE     FACTURAR
+            LEAVE       SPEDIDOS                    ;EL PEDIDO SE CONSIDERA CONCRETADO
+            TABULATE    TABLA4                      ;TABULA CANTIDAD DE PEDIDOS AL TERMINAR DE DESPACHAR UNO   
+RETIRARSE   TERMINATE
+            
+            
+            ;SUBSISTEMA DE LLAMADOS TELEFONICOS
+            
+            GENERATE    600,360,,,10                ;ARRIBO DE LLAMADOS TELEFONICOS
+            ASSIGN      TIPO,1                      ;ESTABLECE QUE ES DE TIPO TELEFONICO EL 
+            SELECT NU   5,1,1,,,OCUPADO             ;SI EL TELEFONO DA OCUPADO, TERMINA
+            SEIZE       *5
+            TRANSFER    0.5,,NOPEDIDO               ;SOLO LA MITAD DE LOS LLAMADOS SON PEDIDOS
+            ASSIGN      PRODUCTOS,FN$CANTPRODUCTOS  ;CANTIDAD DE PRODUCTOS A SOLICITAR
+            ASSIGN      PIEZAS,FN$CANTPIEZAS        ;CANTIDAD DE PIEZAS A SOLICITAR
+                  
+            ;PASAMOS PEDIDO A CUALQUIER EMPLEADO DESOCUPADO DEL MOSTRADOR O DE PEDIDOS
+            
+            ENTER       SPEDIDOS
+            QUEUE       LLAMADOS                    ;LLAMADO ESPERA A QUE SEA ATENDIDO
+            TEST L      S$ATENDER,2,MOSTOCUPADO     ;SENSA SI EL MOSTRADOR ESTA LIBRE 
+            ENTER       ATENDER                     ;TOMA AL PERSONAL DEL MOSTRADOR
+            DEPART      LLAMADOS                    ;SE DEJA LA COLA UNA VEZ QUE TOMARON SU PEDIDO
+            TRANSFER    ,AVANZAMOST
+            
+MOSTOCUPADO ENTER       PREPARAR                    ;ATIENDE PERSONAL DE PREPARACION
+            DEPART      LLAMADOS                    ;SE DEJA LA COLA UNA VEZ QUE TOMARON SU PEDIDO
+            ADVANCE     FN$MEDIATOMAR,60            ;TIEMPO QUE TARDA EN TOMAR EL PEDIDO
+            ASSIGN      AUXPROD,P$PRODUCTOS         ;TIEMPO QUE TARDA EN TOMAR CADA PRODUCTO
+PORPROD1    ADVANCE     FN$MEDIAPRODUCTO,2
+            LOOP        AUXPROD,PORPROD1
+            RELEASE     *5
+            TABULATE    TABLA3                      ;TABULA CANTIDAD DE PEDIDOS  CUANDO SE TERMINA DE TOMAR UNO
+            TRANSFER    ,AVANZAPREP                 ;AVANZA PARA QUE ARMEN EL PEDIDO
+        
+COLGAR      RELEASE     *5                          ;COLGAMOS EL TELÉFONO
+            TRANSFER    ,PREPARA                    ;SE VA A PREPARAR EL PEDIDO TELEFÓNICO
+            
+NOPEDIDO    ADVANCE     120,60                      ;SE RESPONDE EL LLAMADO QUE NO ES UN PEDIDO
+            RELEASE     *5                          ;COLGAMOS EL TELÉFONO
+            TERMINATE
+            
+OCUPADO     TERMINATE                               ;SI ESTÁ OCUPADO NO SE CONCRETA EL LLAMADO
+            
+            
+            
+                  
 
 
 <\F>
